@@ -25,30 +25,35 @@ const elements = {
 
 const STATUS = {
   SUBMITTED: 'Submitted',
-  FIELD_VERIFIED: 'Field Verified',
-  BILLING_REVIEWED: 'Billing Reviewed',
-  ADR_FORWARDED: 'ADR Forwarded',
-  DDR_APPROVED: 'Final Approved',
+  VERIFIED: 'Verified',
+  PROCESSED: 'Processed',
 };
 
 const ROLE_CONFIG = {
-  fieldOfficer: { label: 'Field Officer', canReview: true, filter: complaint => complaint.status === STATUS.SUBMITTED },
-  billingOfficer: { label: 'Billing Officer', canReview: true, filter: complaint => complaint.status === STATUS.FIELD_VERIFIED },
-  adr: { label: 'Assistant Director Revenue', canReview: true, filter: complaint => complaint.status === STATUS.BILLING_REVIEWED },
-  ddr: { label: 'Deputy Director Revenue', canReview: true, filter: complaint => complaint.status === STATUS.ADR_FORWARDED },
+  verificationOfficer: { label: 'Verification Officer', canReview: true, filter: complaint => complaint.status === STATUS.SUBMITTED },
+  staff: { label: 'Staff', canReview: true, filter: complaint => complaint.status === STATUS.VERIFIED },
+  admin: { label: 'Admin', canReview: false, filter: () => true },
 };
 
 const statusClass = {
   [STATUS.SUBMITTED]: 'status-submitted',
-  [STATUS.FIELD_VERIFIED]: 'status-verified',
-  [STATUS.BILLING_REVIEWED]: 'status-billing',
-  [STATUS.ADR_FORWARDED]: 'status-adr',
-  [STATUS.DDR_APPROVED]: 'status-approved',
+  [STATUS.VERIFIED]: 'status-verified',
+  [STATUS.PROCESSED]: 'status-approved',
 };
 
 let appData = null;
 let currentUser = null;
 let currentFilter = 'all';
+
+function escapeHTML(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function loadStorage() {
   try {
@@ -68,17 +73,32 @@ function saveStorage() {
 
 function initApp() {
   appData = loadStorage();
+  const defaultUsers = [
+    { username: 'verify', password: 'verify123', role: 'verificationOfficer' },
+    { username: 'staff', password: 'staff123', role: 'staff' },
+    { username: 'admin', password: 'admin123', role: 'admin' },
+  ];
+
   if (!appData.users || appData.users.length === 0) {
-    appData.users = [
-      { username: 'fieldA', password: 'fieldA123', role: 'fieldOfficer', block: 'A' },
-      { username: 'fieldB', password: 'fieldB123', role: 'fieldOfficer', block: 'B' },
-      { username: 'billing', password: 'billing123', role: 'billingOfficer' },
-      { username: 'adr', password: 'adr123', role: 'adr' },
-      { username: 'ddr', password: 'ddr123', role: 'ddr' },
-    ];
+    appData.users = defaultUsers;
+  } else {
+    const userNames = new Set(appData.users.map(user => user.username));
+    if (!userNames.has('verify') || !userNames.has('staff') || !userNames.has('admin')) {
+      appData.users = defaultUsers;
+    }
   }
+
   if (!appData.complaints) {
     appData.complaints = [];
+  } else {
+    appData.complaints.forEach(complaint => {
+      if (complaint.status === 'Field Verified' || complaint.status === 'Billing Reviewed' || complaint.status === 'ADR Forwarded') {
+        complaint.status = STATUS.VERIFIED;
+      }
+      if (complaint.status === 'Final Approved') {
+        complaint.status = STATUS.PROCESSED;
+      }
+    });
   }
   if (!appData.nextComplaintId) {
     appData.nextComplaintId = 1;
@@ -135,7 +155,7 @@ function updateDashboardHeader() {
 }
 
 function buildStatusFilter() {
-  const statuses = [STATUS.SUBMITTED, STATUS.FIELD_VERIFIED, STATUS.BILLING_REVIEWED, STATUS.ADR_FORWARDED, STATUS.DDR_APPROVED];
+  const statuses = [STATUS.SUBMITTED, STATUS.VERIFIED, STATUS.PROCESSED];
   elements.statusFilter.innerHTML = '<option value="all">All</option>' + statuses.map(status => `<option value="${status}">${status}</option>`).join('');
 }
 
@@ -189,12 +209,12 @@ function handleTrackSubmit(event) {
 function renderComplaintSummary(complaint) {
   return `
     <div class="complaint-summary">
-      <p><strong>Complaint #${complaint.id}</strong> — status <strong>${complaint.status}</strong></p>
-      <p><strong>Consumer:</strong> ${complaint.consumerName} (${complaint.connectionType})</p>
-      <p><strong>Bill Reference:</strong> ${complaint.billRef}</p>
-      <p><strong>Issue:</strong> ${complaint.issueType}</p>
-      <p><strong>Details:</strong> ${complaint.complaintDetails}</p>
-      <p><strong>Latest Notes:</strong> ${complaint.comments.length ? complaint.comments[complaint.comments.length - 1].text : 'Pending review'}</p>
+      <p><strong>Complaint #${complaint.id}</strong> — status <strong>${escapeHTML(complaint.status)}</strong></p>
+      <p><strong>Consumer:</strong> ${escapeHTML(complaint.consumerName)} (${escapeHTML(complaint.connectionType)})</p>
+      <p><strong>Bill Reference:</strong> ${escapeHTML(complaint.billRef)}</p>
+      <p><strong>Issue:</strong> ${escapeHTML(complaint.issueType)}</p>
+      <p><strong>Details:</strong> ${escapeHTML(complaint.complaintDetails)}</p>
+      <p><strong>Latest Notes:</strong> ${escapeHTML(complaint.comments.length ? complaint.comments[complaint.comments.length - 1].text : 'Pending review')}</p>
     </div>`;
 }
 
@@ -223,13 +243,22 @@ function logout() {
 
 function getDashboardComplaints() {
   const base = appData.complaints.filter(ROLE_CONFIG[currentUser.role].filter);
-  if (currentUser.role === 'fieldOfficer') {
-    return base.filter(item => item.areaBlock?.toLowerCase() === currentUser.block.toLowerCase());
+  if (currentUser.role === 'verificationOfficer') {
+    return base;
   }
-  if (currentFilter !== 'all') {
-    return base.filter(item => item.status === currentFilter);
+  if (currentUser.role === 'staff') {
+    if (currentFilter !== 'all') {
+      return base.filter(item => item.status === currentFilter);
+    }
+    return base;
   }
-  return base;
+  if (currentUser.role === 'admin') {
+    if (currentFilter !== 'all') {
+      return appData.complaints.filter(item => item.status === currentFilter);
+    }
+    return appData.complaints;
+  }
+  return [];
 }
 
 function renderDashboard() {
@@ -257,28 +286,46 @@ function buildComplaintCard(complaint) {
   const actions = card.querySelector('.complaint-actions');
 
   title.textContent = `Complaint #${complaint.id} — ${complaint.issueType}`;
-  meta.innerHTML = `Submitted by <strong>${complaint.consumerName}</strong> in block <strong>${complaint.areaBlock}</strong> · ${new Date(complaint.createdAt).toLocaleString()}`;
+  meta.textContent = `Submitted by ${complaint.consumerName} in block ${complaint.areaBlock} · ${new Date(complaint.createdAt).toLocaleString()}`;
   statusPill.textContent = complaint.status;
   statusPill.className = `status-pill ${statusClass[complaint.status] || 'status-closed'}`;
   bodyText.textContent = complaint.complaintDetails;
 
-  details.innerHTML = `
-    <div><strong>CNIC:</strong> ${complaint.cnic}</div>
-    <div><strong>Mobile:</strong> ${complaint.mobile}</div>
-    <div><strong>Bill Reference:</strong> ${complaint.billRef}</div>
-    <div><strong>Connection Type:</strong> ${complaint.connectionType}</div>
-    <div><strong>Area Details:</strong> ${complaint.areaDetails}</div>
-    <div><strong>History:</strong> ${complaint.history.map(entry => `${entry.action} (${new Date(entry.at).toLocaleString()})`).join('; ')}</div>
-  `;
+  const addDetail = (label, value) => {
+    const row = document.createElement('div');
+    const labelEl = document.createElement('strong');
+    labelEl.textContent = `${label}: `;
+    row.appendChild(labelEl);
+    row.appendChild(document.createTextNode(value || ''));
+    details.appendChild(row);
+  };
+
+  details.innerHTML = '';
+  addDetail('CNIC', complaint.cnic);
+  addDetail('Mobile', complaint.mobile);
+  addDetail('Bill Reference', complaint.billRef);
+  addDetail('Connection Type', complaint.connectionType);
+  addDetail('Area Details', complaint.areaDetails);
+  addDetail('History', complaint.history.map(entry => `${entry.action} (${new Date(entry.at).toLocaleString()})`).join('; '));
 
   if (complaint.comments.length) {
     const commentsSection = document.createElement('div');
-    commentsSection.innerHTML = `<strong>Comments:</strong> ${complaint.comments.map(c => `<div><em>${c.author}</em>: ${c.text}</div>`).join('')}`;
+    const commentsTitle = document.createElement('strong');
+    commentsTitle.textContent = 'Comments:';
+    commentsSection.appendChild(commentsTitle);
+    complaint.comments.forEach(c => {
+      const commentRow = document.createElement('div');
+      const authorEl = document.createElement('em');
+      authorEl.textContent = c.author;
+      commentRow.appendChild(authorEl);
+      commentRow.appendChild(document.createTextNode(`: ${c.text}`));
+      commentsSection.appendChild(commentRow);
+    });
     details.appendChild(commentsSection);
   }
 
   if (ROLE_CONFIG[currentUser.role].canReview) {
-    const input = document.createElement(currentUser.role === 'fieldOfficer' ? 'textarea' : 'textarea');
+    const input = document.createElement('textarea');
     input.placeholder = 'Enter your comments here...';
     input.rows = 3;
     input.className = 'action-comment';
@@ -296,17 +343,15 @@ function buildComplaintCard(complaint) {
 
 function getActionLabel(role) {
   switch (role) {
-    case 'fieldOfficer': return 'Verify & Forward to Billing';
-    case 'billingOfficer': return 'Review & Forward to ADR';
-    case 'adr': return 'Add Recommendation & Forward';
-    case 'ddr': return 'Approve Complaint';
+    case 'verificationOfficer': return 'Verify Complaint';
+    case 'staff': return 'Process Complaint';
     default: return 'Update';
   }
 }
 
 function handleAction(complaintId, commentText) {
   if (!commentText) {
-    alert('Please add a comment before forwarding the complaint.');
+    alert('Please add a comment before processing the complaint.');
     return;
   }
   const complaint = appData.complaints.find(item => item.id === complaintId);
@@ -319,21 +364,21 @@ function handleAction(complaintId, commentText) {
   let actionDescription = '';
 
   switch (currentUser.role) {
-    case 'fieldOfficer':
-      nextStatus = STATUS.FIELD_VERIFIED;
-      actionDescription = 'Field officer verified the complaint';
+    case 'verificationOfficer':
+      if (complaint.status !== STATUS.SUBMITTED) {
+        alert('This complaint is not in a state that can be verified.');
+        return;
+      }
+      nextStatus = STATUS.VERIFIED;
+      actionDescription = 'Verification officer verified the complaint';
       break;
-    case 'billingOfficer':
-      nextStatus = STATUS.BILLING_REVIEWED;
-      actionDescription = 'Billing officer completed review';
-      break;
-    case 'adr':
-      nextStatus = STATUS.ADR_FORWARDED;
-      actionDescription = 'Assistant Director forwarded the complaint to DDR';
-      break;
-    case 'ddr':
-      nextStatus = STATUS.DDR_APPROVED;
-      actionDescription = 'Deputy Director approved the complaint';
+    case 'staff':
+      if (complaint.status !== STATUS.VERIFIED) {
+        alert('This complaint is not in a state that can be processed by staff.');
+        return;
+      }
+      nextStatus = STATUS.PROCESSED;
+      actionDescription = 'Staff processed the complaint';
       break;
     default:
       return;
@@ -350,10 +395,8 @@ function handleAction(complaintId, commentText) {
 function buildStatusSummary() {
   const counts = {
     [STATUS.SUBMITTED]: 0,
-    [STATUS.FIELD_VERIFIED]: 0,
-    [STATUS.BILLING_REVIEWED]: 0,
-    [STATUS.ADR_FORWARDED]: 0,
-    [STATUS.DDR_APPROVED]: 0,
+    [STATUS.VERIFIED]: 0,
+    [STATUS.PROCESSED]: 0,
   };
   appData.complaints.forEach(complaint => {
     if (counts[complaint.status] !== undefined) {
