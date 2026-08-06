@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complaint Management System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>Revenue Complaint Management</h1>
+      <p>A single portal for consumer complaints, field verification, billing review and revenue approvals.</p>
+    </div>
+    <nav class="top-nav">
+      <button id="navConsumer">Consumer Complaint</button>
+      <button id="navLogin">Role Login</button>
+      <button id="navDashboard" class="hidden">My Dashboard</button>
+      <button id="navLogout" class="hidden">Logout</button>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section id="consumerSection">
+      <h2>Register a New Complaint</h2>
+      <form id="consumerForm" class="card form-card">
+        <div class="row">
+          <label>Consumer Name<input type="text" id="consumerName" name="consumerName" required /></label>
+          <label>Father Name<input type="text" id="fatherName" name="fatherName" required /></label>
+        </div>
+        <div class="row">
+          <label>CNIC Number<input type="text" id="cnic" name="cnic" placeholder="xxxxx-xxxxxxx-x" required pattern="\d{5}-\d{7}-\d{1}" /></label>
+          <label>Mobile Number<input type="text" id="mobile" name="mobile" placeholder="03xx-xxxxxxx" required pattern="\d{10,12}" /></label>
+        </div>
+        <div class="row">
+          <label>Bill Reference Number<input type="text" id="billRef" name="billRef" required /></label>
+          <label>Type
+            <select id="connectionType" name="connectionType" required>
+              <option value="Domestic">Domestic</option>
+              <option value="Commercial">Commercial</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>Block / Area<input type="text" id="areaBlock" name="areaBlock" placeholder="e.g. Block A" required /></label>
+          <label>Issue in Area / Marla<input type="text" id="areaDetails" name="areaDetails" placeholder="e.g. 3 marla, sector 2" required /></label>
+        </div>
+
+        <div class="row">
+          <label>Issue Type
+            <select id="issueType" name="issueType" required>
+              <option value="No Water Supply">No Water Supply</option>
+              <option value="No Sewerage">No Sewerage</option>
+              <option value="Both Water & Sewerage">Both Water & Sewerage</option>
+              <option value="Wrong Category">Wrong Category</option>
+              <option value="Name Correction">Name Correction</option>
+              <option value="Arrear Adjustment">Arrear Adjustment</option>
+              <option value="Paid Amount Not Billed">Paid Amount Not Billed</option>
+            </select>
+          </label>
+        </div>
+
+        <label>Detailed Complaint<textarea id="complaintDetails" name="complaintDetails" rows="4" placeholder="Describe the issue in detail" required></textarea></label>
+
+        <button type="submit" class="primary">Submit Complaint</button>
+      </form>
+
+      <div id="consumerConfirmation" class="card confirmation hidden"></div>
+
+      <div class="card search-card">
+        <h3>Track a Complaint</h3>
+        <form id="trackForm" class="track-form">
+          <label>Complaint Number<input type="number" id="trackId" min="1" required /></label>
+          <button type="submit">Search</button>
+        </form>
+        <div id="trackResult" class="track-result"></div>
+      </div>
+    </section>
+
+    <section id="loginSection" class="hidden">
+      <h2>Login to Your Role</h2>
+      <form id="loginForm" class="card form-card">
+        <label>Username<input type="text" id="username" required /></label>
+        <label>Password<input type="password" id="password" required /></label>
+        <button type="submit" class="primary">Login</button>
+      </form>
+      <div class="info-card card">
+        <h3>Test Accounts</h3>
+        <p><strong>Field Officer A</strong>: username <code>fieldA</code>, password <code>fieldA123</code></p>
+        <p><strong>Field Officer B</strong>: username <code>fieldB</code>, password <code>fieldB123</code></p>
+        <p><strong>Billing Officer</strong>: username <code>billing</code>, password <code>billing123</code></p>
+        <p><strong>Assistant Director Revenue</strong>: username <code>adr</code>, password <code>adr123</code></p>
+        <p><strong>Deputy Director Revenue</strong>: username <code>ddr</code>, password <code>ddr123</code></p>
+      </div>
+    </section>
+
+    <section id="dashboardSection" class="hidden">
+      <div class="toolbar card">
+        <div>
+          <h2 id="dashboardTitle">Dashboard</h2>
+          <p id="dashboardSubtitle"></p>
+        </div>
+        <div class="status-summary" id="statusSummary"></div>
+      </div>
+      <div id="dashboardFilters" class="filters card hidden">
+        <label>Filter by status
+          <select id="statusFilter">
+            <option value="all">All</option>
+          </select>
+        </label>
+      </div>
+      <div id="complaintList" class="card complaint-list"></div>
+      <div id="dashboardEmpty" class="card empty-state hidden">
+        <p>No complaints are waiting for your action right now.</p>
+      </div>
+    </section>
+  </main>
+
+  <template id="complaintCardTemplate">
+    <article class="complaint-card">
+      <div class="card-header">
+        <div>
+          <h3 class="complaint-title"></h3>
+          <div class="complaint-meta"></div>
+        </div>
+        <span class="status-pill"></span>
+      </div>
+      <div class="complaint-body">
+        <p class="complaint-text"></p>
+        <div class="complaint-details"></div>
+      </div>
+      <div class="complaint-actions"></div>
+    </article>
+  </template>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
