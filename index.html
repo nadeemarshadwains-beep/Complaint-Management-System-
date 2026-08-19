@@ -1,137 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Complaint Management System</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <header class="app-header">
-    <div class="brand">
-      <h1>Revenue Complaint Management</h1>
-      <p>A single portal for consumer complaints, field verification, billing review and revenue approvals.</p>
-    </div>
-    <nav class="top-nav">
-      <button id="navConsumer">Consumer Complaint</button>
-      <button id="navLogin">Role Login</button>
-      <button id="navDashboard" class="hidden">My Dashboard</button>
-      <button id="navLogout" class="hidden">Logout</button>
-    </nav>
-  </header>
-
-  <main class="main-content">
-    <section id="consumerSection">
-      <h2>Register a New Complaint</h2>
-      <form id="consumerForm" class="card form-card">
-        <div class="row">
-          <label>Consumer Name<input type="text" id="consumerName" name="consumerName" required /></label>
-          <label>Father Name<input type="text" id="fatherName" name="fatherName" required /></label>
-        </div>
-        <div class="row">
-          <label>CNIC Number<input type="text" id="cnic" name="cnic" placeholder="xxxxx-xxxxxxx-x" required pattern="\d{5}-\d{7}-\d{1}" /></label>
-          <label>Mobile Number<input type="text" id="mobile" name="mobile" placeholder="03xx-xxxxxxx" required pattern="\d{10,12}" /></label>
-        </div>
-        <div class="row">
-          <label>Bill Reference Number<input type="text" id="billRef" name="billRef" required /></label>
-          <label>Type
-            <select id="connectionType" name="connectionType" required>
-              <option value="Domestic">Domestic</option>
-              <option value="Commercial">Commercial</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="row">
-          <label>Block / Area<input type="text" id="areaBlock" name="areaBlock" placeholder="e.g. Block A" required /></label>
-          <label>Issue in Area / Marla<input type="text" id="areaDetails" name="areaDetails" placeholder="e.g. 3 marla, sector 2" required /></label>
-        </div>
-
-        <div class="row">
-          <label>Issue Type
-            <select id="issueType" name="issueType" required>
-              <option value="No Water Supply">No Water Supply</option>
-              <option value="No Sewerage">No Sewerage</option>
-              <option value="Both Water & Sewerage">Both Water & Sewerage</option>
-              <option value="Wrong Category">Wrong Category</option>
-              <option value="Name Correction">Name Correction</option>
-              <option value="Arrear Adjustment">Arrear Adjustment</option>
-              <option value="Paid Amount Not Billed">Paid Amount Not Billed</option>
-            </select>
-          </label>
-        </div>
-
-        <label>Detailed Complaint<textarea id="complaintDetails" name="complaintDetails" rows="4" placeholder="Describe the issue in detail" required></textarea></label>
-
-        <button type="submit" class="primary">Submit Complaint</button>
-      </form>
-
-      <div id="consumerConfirmation" class="card confirmation hidden"></div>
-
-      <div class="card search-card">
-        <h3>Track a Complaint</h3>
-        <form id="trackForm" class="track-form">
-          <label>Complaint Number<input type="number" id="trackId" min="1" required /></label>
-          <button type="submit">Search</button>
-        </form>
-        <div id="trackResult" class="track-result"></div>
-      </div>
-    </section>
-
-    <section id="loginSection" class="hidden">
-      <h2>Login to Your Role</h2>
-      <form id="loginForm" class="card form-card">
-        <label>Username<input type="text" id="username" required /></label>
-        <label>Password<input type="password" id="password" required /></label>
-        <button type="submit" class="primary">Login</button>
-      </form>
-      <div class="info-card card">
-        <h3>Test Accounts</h3>
-        <p><strong>Verification Officer</strong>: username <code>verify</code>, password <code>verify123</code></p>
-        <p><strong>Staff</strong>: username <code>staff</code>, password <code>staff123</code></p>
-        <p><strong>Admin</strong>: username <code>admin</code>, password <code>admin123</code></p>
-      </div>
-    </section>
-
-    <section id="dashboardSection" class="hidden">
-      <div class="toolbar card">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WASA Gujrat Bill Distribution</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark">W</div>
         <div>
-          <h2 id="dashboardTitle">Dashboard</h2>
-          <p id="dashboardSubtitle"></p>
+          <h1>WASA Gujrat Bill Distribution</h1>
+          <p>Monthly billing upload, consumer SMS distribution, and billing summary dashboard.</p>
         </div>
-        <div class="status-summary" id="statusSummary"></div>
       </div>
-      <div id="dashboardFilters" class="filters card hidden">
-        <label>Filter by status
-          <select id="statusFilter">
-            <option value="all">All</option>
-          </select>
-        </label>
-      </div>
-      <div id="complaintList" class="card complaint-list"></div>
-      <div id="dashboardEmpty" class="card empty-state hidden">
-        <p>No complaints are waiting for your action right now.</p>
-      </div>
-    </section>
-  </main>
+    </header>
 
-  <template id="complaintCardTemplate">
-    <article class="complaint-card">
-      <div class="card-header">
-        <div>
-          <h3 class="complaint-title"></h3>
-          <div class="complaint-meta"></div>
+    <main class="main-shell">
+      <section class="card hero-card">
+        <div class="hero-copy">
+          <span class="eyebrow">Monthly billing workflow</span>
+          <h2>Upload monthly consumer bills and send SMS to each customer.</h2>
+          <p>
+            Upload your Excel or CSV file, review consumer details, and send the bill SMS to each mobile number.
+            The system is designed for recurring monthly use, with billing month, due date, total amount,
+            overdue amount, and payment message support.
+          </p>
         </div>
-        <span class="status-pill"></span>
-      </div>
-      <div class="complaint-body">
-        <p class="complaint-text"></p>
-        <div class="complaint-details"></div>
-      </div>
-      <div class="complaint-actions"></div>
-    </article>
-  </template>
+        <div class="hero-meta">
+          <div class="chip">CSV / XLSX upload</div>
+          <div class="chip">SMS message template</div>
+          <div class="chip">JazzCash payment note</div>
+        </div>
+      </section>
 
-  <script src="app.js" defer></script>
-</body>
+      <section class="dashboard-grid">
+        <div class="card form-panel">
+          <div class="section-header">
+            <h3>1. Upload billing file</h3>
+          </div>
+
+          <div class="upload-box">
+            <label class="file-label" for="billFile">Choose Excel or CSV file</label>
+            <input id="billFile" type="file" accept=".csv,.xlsx,.xls" />
+          </div>
+
+          <div class="template-row">
+            <button id="downloadTemplateBtn" class="secondary-btn" type="button">Download sample template</button>
+            <button id="clearDataBtn" class="ghost-btn" type="button">Clear records</button>
+          </div>
+
+          <div class="config-grid">
+            <label>
+              SMS API URL
+              <input id="smsApiUrl" type="url" placeholder="https://example-sms-gateway.com/api/send" />
+            </label>
+            <label>
+              API Key / Token
+              <input id="smsApiKey" type="text" placeholder="Optional if using mock mode" />
+            </label>
+            <label>
+              Sender ID
+              <input id="smsSenderId" type="text" placeholder="WASAGJ" />
+            </label>
+          </div>
+        </div>
+
+        <div class="card summary-panel">
+          <div class="section-header">
+            <h3>Billing summary</h3>
+          </div>
+          <div class="totals-grid">
+            <div class="total-box total-box-primary">
+              <span>Consumers</span>
+              <strong id="consumerCount">0</strong>
+            </div>
+            <div class="total-box">
+              <span>Total Amount</span>
+              <strong id="totalAmount">PKR 0</strong>
+            </div>
+            <div class="total-box">
+              <span>Due This Month</span>
+              <strong id="dueCount">0</strong>
+            </div>
+            <div class="total-box">
+              <span>SMS Status</span>
+              <strong id="smsStatusText">Not sent</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card message-panel">
+        <div class="section-header">
+          <h3>2. Message template</h3>
+        </div>
+
+        <textarea id="smsTemplate" rows="7">Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.</textarea>
+
+        <div class="preview-actions">
+          <button id="previewMessageBtn" class="primary-btn" type="button">Preview message</button>
+          <button id="sendSmsBtn" class="success-btn" type="button">Send SMS to all consumers</button>
+        </div>
+
+        <div id="previewMessageBox" class="preview-box">
+          No billing data loaded yet.
+        </div>
+      </section>
+
+      <section class="card table-panel">
+        <div class="section-header table-header">
+          <h3>3. Consumer bill list</h3>
+          <a href="https://dbill.wasagujrat.gop.pk" target="_blank" rel="noreferrer">Official billing website</a>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Consumer</th>
+                <th>Mobile</th>
+                <th>Billing Month</th>
+                <th>Due Date</th>
+                <th>Amount</th>
+                <th>After Due</th>
+                <th>SMS</th>
+              </tr>
+            </thead>
+            <tbody id="consumerTableBody">
+              <tr>
+                <td colspan="7" class="empty-state">No consumer records uploaded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
 </html>

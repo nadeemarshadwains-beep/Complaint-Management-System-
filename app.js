@@ -1,409 +1,466 @@
-const STORAGE_KEY = 'revenueComplaintAppData';
+const STORAGE_KEY = 'wasaBillDistributionData';
 
 const elements = {
-  navConsumer: document.getElementById('navConsumer'),
-  navLogin: document.getElementById('navLogin'),
-  navDashboard: document.getElementById('navDashboard'),
-  navLogout: document.getElementById('navLogout'),
-  consumerSection: document.getElementById('consumerSection'),
-  loginSection: document.getElementById('loginSection'),
-  dashboardSection: document.getElementById('dashboardSection'),
-  consumerForm: document.getElementById('consumerForm'),
-  consumerConfirmation: document.getElementById('consumerConfirmation'),
-  trackForm: document.getElementById('trackForm'),
-  trackResult: document.getElementById('trackResult'),
-  loginForm: document.getElementById('loginForm'),
-  dashboardTitle: document.getElementById('dashboardTitle'),
-  dashboardSubtitle: document.getElementById('dashboardSubtitle'),
-  statusSummary: document.getElementById('statusSummary'),
-  dashboardFilters: document.getElementById('dashboardFilters'),
-  complaintList: document.getElementById('complaintList'),
-  dashboardEmpty: document.getElementById('dashboardEmpty'),
-  statusFilter: document.getElementById('statusFilter'),
-  complaintCardTemplate: document.getElementById('complaintCardTemplate'),
+  billFile: document.getElementById('billFile'),
+  smsTemplate: document.getElementById('smsTemplate'),
+  previewMessageBtn: document.getElementById('previewMessageBtn'),
+  sendSmsBtn: document.getElementById('sendSmsBtn'),
+  previewMessageBox: document.getElementById('previewMessageBox'),
+  consumerTableBody: document.getElementById('consumerTableBody'),
+  consumerCount: document.getElementById('consumerCount'),
+  totalAmount: document.getElementById('totalAmount'),
+  dueCount: document.getElementById('dueCount'),
+  smsStatusText: document.getElementById('smsStatusText'),
+  downloadTemplateBtn: document.getElementById('downloadTemplateBtn'),
+  clearDataBtn: document.getElementById('clearDataBtn'),
+  smsApiUrl: document.getElementById('smsApiUrl'),
+  smsApiKey: document.getElementById('smsApiKey'),
+  smsSenderId: document.getElementById('smsSenderId'),
 };
 
-const STATUS = {
-  SUBMITTED: 'Submitted',
-  VERIFIED: 'Verified',
-  PROCESSED: 'Processed',
+const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
+const BILLING_WEBSITE = 'https://dbill.wasagujrat.gop.pk';
+
+let appState = {
+  consumers: [],
+  smsConfig: {
+    apiUrl: '',
+    apiKey: '',
+    senderId: 'WASAGJ',
+  },
+  template: DEFAULT_TEMPLATE,
+  smsStatus: 'Not sent',
 };
 
-const ROLE_CONFIG = {
-  verificationOfficer: { label: 'Verification Officer', canReview: true, filter: complaint => complaint.status === STATUS.SUBMITTED },
-  staff: { label: 'Staff', canReview: true, filter: complaint => complaint.status === STATUS.VERIFIED },
-  admin: { label: 'Admin', canReview: false, filter: () => true },
-};
+document.addEventListener('DOMContentLoaded', initApp);
 
-const statusClass = {
-  [STATUS.SUBMITTED]: 'status-submitted',
-  [STATUS.VERIFIED]: 'status-verified',
-  [STATUS.PROCESSED]: 'status-approved',
-};
+function initApp() {
+  const saved = loadData();
+  appState = {
+    ...appState,
+    ...saved,
+    smsConfig: { ...appState.smsConfig, ...(saved.smsConfig || {}) },
+    template: saved.template || DEFAULT_TEMPLATE,
+    consumers: saved.consumers || [],
+    smsStatus: saved.smsStatus || 'Not sent',
+  };
 
-let appData = null;
-let currentUser = null;
-let currentFilter = 'all';
+  elements.smsTemplate.value = appState.template;
+  elements.smsApiUrl.value = appState.smsConfig.apiUrl || '';
+  elements.smsApiKey.value = appState.smsConfig.apiKey || '';
+  elements.smsSenderId.value = appState.smsConfig.senderId || 'WASAGJ';
 
-function escapeHTML(value) {
-  if (value == null) return '';
+  elements.billFile.addEventListener('change', handleFileUpload);
+  elements.previewMessageBtn.addEventListener('click', previewMessage);
+  elements.sendSmsBtn.addEventListener('click', sendBulkSms);
+  elements.downloadTemplateBtn.addEventListener('click', downloadSampleTemplate);
+  elements.clearDataBtn.addEventListener('click', clearRecords);
+  elements.smsTemplate.addEventListener('input', () => {
+    appState.template = elements.smsTemplate.value.trim() || DEFAULT_TEMPLATE;
+    saveData();
+    previewMessage();
+  });
+
+  ['smsApiUrl', 'smsApiKey', 'smsSenderId'].forEach((field) => {
+    elements[field].addEventListener('input', () => {
+      appState.smsConfig = {
+        apiUrl: elements.smsApiUrl.value.trim(),
+        apiKey: elements.smsApiKey.value.trim(),
+        senderId: elements.smsSenderId.value.trim() || 'WASAGJ',
+      };
+      saveData();
+    });
+  });
+
+  renderSummary();
+  renderConsumerTable();
+  previewMessage();
+}
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (error) {
+    console.error('Failed to load billing data', error);
+    return {};
+  }
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+  } catch (error) {
+    console.error('Failed to save billing data', error);
+  }
+}
+
+function clearRecords() {
+  appState.consumers = [];
+  appState.smsStatus = 'Not sent';
+  elements.billFile.value = '';
+  saveData();
+  renderSummary();
+  renderConsumerTable();
+  previewMessage();
+}
+
+function downloadSampleTemplate() {
+  const csv = [
+    'consumer_name,mobile_number,billing_month,due_date,amount,amount_after_due_date',
+    'Ali Khan,03001234567,August 2026,2026-08-20,2500,2750',
+    'Bibi Ayesha,03006543210,August 2026,2026-08-22,3200,3500',
+  ].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'wasa_bill_template.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function handleFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const rows = await readBillingFile(file);
+    appState.consumers = rows;
+    appState.smsStatus = 'Ready to send';
+    saveData();
+    renderSummary();
+    renderConsumerTable();
+    previewMessage();
+    alert(`${rows.length} consumers loaded successfully.`);
+  } catch (error) {
+    console.error(error);
+    alert('Unable to read the uploaded file. Please check the file format and columns.');
+  }
+}
+
+function readBillingFile(file) {
+  return new Promise((resolve, reject) => {
+    const fileName = file.name.toLowerCase();
+    const isCsv = fileName.endsWith('.csv');
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+    if (!isCsv && !isExcel) {
+      reject(new Error('Unsupported file type'));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target.result;
+        let sheetData = [];
+
+        if (isCsv) {
+          const text = String(data);
+          sheetData = parseCsvText(text);
+        } else {
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          sheetData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+        }
+
+        const normalized = sheetData
+          .map(normalizeConsumerRecord)
+          .filter(Boolean);
+
+        if (!normalized.length) {
+          reject(new Error('No valid consumer rows were found. Check the header names and required fields.'));
+          return;
+        }
+
+        resolve(normalized);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    reader.onerror = () => reject(new Error('Failed to read the file.'));
+
+    if (isCsv) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+function parseCsvText(text) {
+  const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
+  if (!rows.length) return [];
+
+  const header = rows[0].split(',').map(cell => normalizeHeader(cell));
+  return rows.slice(1).map((row) => {
+    const values = splitCsvRow(row);
+    return Object.fromEntries(header.map((key, index) => [key, values[index] || '']));
+  });
+}
+
+function splitCsvRow(rowText) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < rowText.length; i++) {
+    const char = rowText[i];
+    if (char === '"') {
+      if (inQuotes && rowText[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function normalizeHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function normalizeConsumerRecord(row) {
+  const record = Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [normalizeHeader(key), String(value ?? '').trim()])
+  );
+
+  const consumerName = findFirst(record, ['consumer_name', 'customer_name', 'name', 'consumer']);
+  const mobile = normalizeMobile(findFirst(record, ['mobile_number', 'mobile', 'phone', 'contact', 'cell_number']));
+  const billingMonth = findFirst(record, ['billing_month', 'bill_month', 'month', 'bill_period']);
+  const dueDate = parseDateValue(findFirst(record, ['due_date', 'date_due', 'deadline']));
+  const amount = parseNumericValue(findFirst(record, ['amount', 'bill_amount', 'total_amount', 'net_amount']));
+  const amountAfterDue = parseNumericValue(
+    findFirst(record, ['amount_after_due_date', 'after_due_amount', 'late_amount', 'amount_after_due', 'due_amount'])
+  );
+
+  if (!consumerName || !mobile || !billingMonth || !dueDate || !amount) {
+    return null;
+  }
+
+  const safeAfterDue = amountAfterDue ?? amount;
+
+  return {
+    consumerName,
+    mobile,
+    billingMonth,
+    dueDate,
+    amount: Number(amount),
+    amountAfterDue: Number(safeAfterDue),
+    billReference: findFirst(record, ['bill_reference', 'reference', 'bill_no', 'consumer_id']) || '',
+    smsStatus: 'pending',
+  };
+}
+
+function findFirst(record, keys) {
+  for (const key of keys) {
+    if (record[key] && String(record[key]).trim() !== '') {
+      return String(record[key]).trim();
+    }
+  }
+  return '';
+}
+
+function normalizeMobile(value) {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('92')) return `0${digits.slice(2)}`;
+  if (digits.startsWith('03')) return digits;
+  if (digits.length === 11 && digits.startsWith('3')) return digits;
+  if (digits.length === 10 && digits.startsWith('3')) return `0${digits}`;
+  return digits.length >= 10 ? `0${digits.slice(-10)}` : '';
+}
+
+function parseNumericValue(value) {
+  if (!value) return null;
+  const cleaned = String(value).replace(/[^0-9.\-]/g, '');
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function parseDateValue(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return formatDate(date);
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    const safeYear = year.length === 2 ? `20${year}` : year;
+    const parsed = new Date(`${safeYear}-${month}-${day}`);
+    return Number.isNaN(parsed.getTime()) ? raw : formatDate(parsed);
+  }
+
+  return raw;
+}
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function renderSummary() {
+  const totalAmount = appState.consumers.reduce((sum, person) => sum + Number(person.amount || 0), 0);
+  const dueCount = appState.consumers.filter((person) => Number(person.amountAfterDue || 0) > Number(person.amount || 0)).length;
+
+  elements.consumerCount.textContent = String(appState.consumers.length);
+  elements.totalAmount.textContent = `PKR ${formatCurrency(totalAmount)}`;
+  elements.dueCount.textContent = String(dueCount);
+  elements.smsStatusText.textContent = appState.smsStatus || 'Not sent';
+}
+
+function formatCurrency(value) {
+  return Number(value || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 });
+}
+
+function renderConsumerTable() {
+  if (!appState.consumers.length) {
+    elements.consumerTableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No consumer records uploaded yet.</td></tr>';
+    return;
+  }
+
+  elements.consumerTableBody.innerHTML = appState.consumers
+    .map((person) => {
+      const statusClass = person.smsStatus === 'sent' ? 'sent' : person.smsStatus === 'simulated' ? 'simulated' : 'pending';
+      const messageText = person.smsStatus === 'sent' ? 'Sent' : person.smsStatus === 'simulated' ? 'Simulated' : 'Pending';
+      return `
+        <tr>
+          <td>${escapeHtml(person.consumerName)}${person.billReference ? `<br><small>${escapeHtml(person.billReference)}</small>` : ''}</td>
+          <td>${escapeHtml(person.mobile)}</td>
+          <td>${escapeHtml(person.billingMonth)}</td>
+          <td>${escapeHtml(person.dueDate)}</td>
+          <td>PKR ${formatCurrency(person.amount)}</td>
+          <td>PKR ${formatCurrency(person.amountAfterDue)}</td>
+          <td><span class="status-chip ${statusClass}">${messageText}</span></td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/'/g, '&#039;');
 }
 
-function loadStorage() {
+function previewMessage() {
+  if (!appState.consumers.length) {
+    elements.previewMessageBox.textContent = 'No billing data loaded yet.';
+    return;
+  }
+
+  const firstConsumer = appState.consumers[0];
+  const message = buildMessage(firstConsumer, appState.template);
+  elements.previewMessageBox.textContent = message;
+}
+
+function buildMessage(person, template) {
+  const safeTemplate = template || DEFAULT_TEMPLATE;
+  const replacements = {
+    '{{consumer_name}}': person.consumerName,
+    '{{billing_month}}': person.billingMonth,
+    '{{due_date}}': person.dueDate,
+    '{{amount}}': formatCurrency(person.amount),
+    '{{amount_after_due_date}}': formatCurrency(person.amountAfterDue),
+    '{{payment_method}}': 'JazzCash',
+    '{{billing_website}}': BILLING_WEBSITE,
+  };
+
+  return Object.entries(replacements).reduce(
+    (text, [key, value]) => text.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value),
+    safeTemplate
+  );
+}
+
+async function sendBulkSms() {
+  if (!appState.consumers.length) {
+    alert('Please upload a billing file first.');
+    return;
+  }
+
+  const config = appState.smsConfig;
+  const hasLiveGateway = Boolean(config.apiUrl && config.apiKey);
+
+  if (!hasLiveGateway) {
+    appState.consumers = appState.consumers.map((person) => ({
+      ...person,
+      smsStatus: 'simulated',
+    }));
+    appState.smsStatus = 'Simulated';
+    saveData();
+    renderSummary();
+    renderConsumerTable();
+    elements.previewMessageBox.textContent = appState.consumers.map((person) => buildMessage(person, appState.template)).join('\n\n');
+    alert('No live SMS gateway configured. SMS messages were prepared in simulation mode.');
+    return;
+  }
+
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
+    let sentCount = 0;
+    for (const person of appState.consumers) {
+      const message = buildMessage(person, appState.template);
+      const payload = {
+        mobile: person.mobile,
+        message,
+        senderId: config.senderId,
+        consumerName: person.consumerName,
+        billingMonth: person.billingMonth,
+      };
+
+      const response = await fetch(config.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gateway returned ${response.status}`);
+      }
+
+      person.smsStatus = 'sent';
+      sentCount += 1;
     }
+
+    appState.smsStatus = `${sentCount} sent`;
+    saveData();
+    renderSummary();
+    renderConsumerTable();
+    alert(`${sentCount} SMS messages sent successfully.`);
   } catch (error) {
-    console.error('Failed to parse saved data', error);
-  }
-  return { users: [], complaints: [], nextComplaintId: 1 };
-}
-
-function saveStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-}
-
-function initApp() {
-  appData = loadStorage();
-  const defaultUsers = [
-    { username: 'verify', password: 'verify123', role: 'verificationOfficer' },
-    { username: 'staff', password: 'staff123', role: 'staff' },
-    { username: 'admin', password: 'admin123', role: 'admin' },
-  ];
-
-  if (!appData.users || appData.users.length === 0) {
-    appData.users = defaultUsers;
-  } else {
-    const userNames = new Set(appData.users.map(user => user.username));
-    if (!userNames.has('verify') || !userNames.has('staff') || !userNames.has('admin')) {
-      appData.users = defaultUsers;
-    }
-  }
-
-  if (!appData.complaints) {
-    appData.complaints = [];
-  } else {
-    appData.complaints.forEach(complaint => {
-      if (complaint.status === 'Field Verified' || complaint.status === 'Billing Reviewed' || complaint.status === 'ADR Forwarded') {
-        complaint.status = STATUS.VERIFIED;
-      }
-      if (complaint.status === 'Final Approved') {
-        complaint.status = STATUS.PROCESSED;
-      }
-    });
-  }
-  if (!appData.nextComplaintId) {
-    appData.nextComplaintId = 1;
-  }
-  saveStorage();
-  attachEvents();
-  showView('consumer');
-  buildStatusFilter();
-}
-
-function attachEvents() {
-  elements.navConsumer.addEventListener('click', () => showView('consumer'));
-  elements.navLogin.addEventListener('click', () => showView('login'));
-  elements.navDashboard.addEventListener('click', () => showView('dashboard'));
-  elements.navLogout.addEventListener('click', logout);
-
-  elements.consumerForm.addEventListener('submit', handleComplaintSubmit);
-  elements.trackForm.addEventListener('submit', handleTrackSubmit);
-  elements.loginForm.addEventListener('submit', handleLoginSubmit);
-  elements.statusFilter.addEventListener('change', event => {
-    currentFilter = event.target.value;
-    renderDashboard();
-  });
-}
-
-function showView(view) {
-  elements.consumerSection.classList.toggle('hidden', view !== 'consumer');
-  elements.loginSection.classList.toggle('hidden', view !== 'login');
-  elements.dashboardSection.classList.toggle('hidden', view !== 'dashboard');
-  elements.navDashboard.classList.toggle('hidden', !currentUser);
-  elements.navLogout.classList.toggle('hidden', !currentUser);
-  elements.navLogin.classList.toggle('hidden', view === 'login' || !!currentUser);
-  elements.navConsumer.classList.toggle('hidden', false);
-  const dashboardVisible = view === 'dashboard' && !!currentUser;
-  elements.dashboardFilters.classList.toggle('hidden', !dashboardVisible);
-
-  if (view === 'dashboard') {
-    if (!currentUser) {
-      showView('login');
-      return;
-    }
-    updateDashboardHeader();
-    renderDashboard();
-  } else if (view === 'login') {
-    elements.loginForm.reset();
+    console.error('SMS send failed:', error);
+    alert('SMS sending failed. Please check the gateway URL and API configuration.');
   }
 }
-
-function updateDashboardHeader() {
-  const roleLabel = ROLE_CONFIG[currentUser.role]?.label || 'Dashboard';
-  elements.dashboardTitle.textContent = `${roleLabel} Dashboard`;
-  elements.dashboardSubtitle.textContent = `Logged in as ${currentUser.username}${currentUser.block ? ' (Block ' + currentUser.block + ')' : ''}`;
-  buildStatusSummary();
-}
-
-function buildStatusFilter() {
-  const statuses = [STATUS.SUBMITTED, STATUS.VERIFIED, STATUS.PROCESSED];
-  elements.statusFilter.innerHTML = '<option value="all">All</option>' + statuses.map(status => `<option value="${status}">${status}</option>`).join('');
-}
-
-function handleComplaintSubmit(event) {
-  event.preventDefault();
-  const data = new FormData(elements.consumerForm);
-  const complaint = {
-    id: appData.nextComplaintId++,
-    createdAt: new Date().toISOString(),
-    consumerName: data.get('consumerName')?.trim(),
-    fatherName: data.get('fatherName')?.trim(),
-    cnic: data.get('cnic')?.trim(),
-    mobile: data.get('mobile')?.trim(),
-    billRef: data.get('billRef')?.trim(),
-    connectionType: data.get('connectionType'),
-    areaBlock: data.get('areaBlock')?.trim(),
-    areaDetails: data.get('areaDetails')?.trim(),
-    issueType: data.get('issueType'),
-    complaintDetails: data.get('complaintDetails')?.trim(),
-    status: STATUS.SUBMITTED,
-    history: [
-      { at: new Date().toISOString(), actor: 'System', action: 'Complaint submitted by consumer' },
-    ],
-    comments: [],
-  };
-
-  if (!complaint.consumerName || !complaint.fatherName || !complaint.cnic || !complaint.mobile || !complaint.billRef || !complaint.areaBlock || !complaint.areaDetails || !complaint.complaintDetails) {
-    alert('Please complete all required fields before submitting your complaint.');
-    return;
-  }
-
-  appData.complaints.unshift(complaint);
-  saveStorage();
-  elements.consumerForm.reset();
-  elements.consumerConfirmation.innerHTML = `<h3>Complaint Registered Successfully</h3><p>Your complaint number is <strong>#${complaint.id}</strong>. Please keep it for tracking and communication.</p><p>Status: <strong>${complaint.status}</strong></p>`;
-  elements.consumerConfirmation.classList.remove('hidden');
-  elements.trackResult.textContent = '';
-}
-
-function handleTrackSubmit(event) {
-  event.preventDefault();
-  const complaintId = Number(document.getElementById('trackId').value);
-  const complaint = appData.complaints.find(item => item.id === complaintId);
-  if (!complaint) {
-    elements.trackResult.innerHTML = `<p>Complaint #${complaintId} not found. Please verify the number and try again.</p>`;
-    return;
-  }
-  elements.trackResult.innerHTML = renderComplaintSummary(complaint);
-}
-
-function renderComplaintSummary(complaint) {
-  return `
-    <div class="complaint-summary">
-      <p><strong>Complaint #${complaint.id}</strong> — status <strong>${escapeHTML(complaint.status)}</strong></p>
-      <p><strong>Consumer:</strong> ${escapeHTML(complaint.consumerName)} (${escapeHTML(complaint.connectionType)})</p>
-      <p><strong>Bill Reference:</strong> ${escapeHTML(complaint.billRef)}</p>
-      <p><strong>Issue:</strong> ${escapeHTML(complaint.issueType)}</p>
-      <p><strong>Details:</strong> ${escapeHTML(complaint.complaintDetails)}</p>
-      <p><strong>Latest Notes:</strong> ${escapeHTML(complaint.comments.length ? complaint.comments[complaint.comments.length - 1].text : 'Pending review')}</p>
-    </div>`;
-}
-
-function handleLoginSubmit(event) {
-  event.preventDefault();
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
-  const user = appData.users.find(item => item.username === username && item.password === password);
-  if (!user) {
-    alert('Invalid credentials. Please check username and password.');
-    return;
-  }
-  currentUser = user;
-  elements.navLogin.classList.add('hidden');
-  elements.navDashboard.classList.remove('hidden');
-  elements.navLogout.classList.remove('hidden');
-  showView('dashboard');
-}
-
-function logout() {
-  currentUser = null;
-  elements.navDashboard.classList.add('hidden');
-  elements.navLogout.classList.add('hidden');
-  showView('consumer');
-}
-
-function getDashboardComplaints() {
-  const base = appData.complaints.filter(ROLE_CONFIG[currentUser.role].filter);
-  if (currentUser.role === 'verificationOfficer') {
-    return base;
-  }
-  if (currentUser.role === 'staff') {
-    if (currentFilter !== 'all') {
-      return base.filter(item => item.status === currentFilter);
-    }
-    return base;
-  }
-  if (currentUser.role === 'admin') {
-    if (currentFilter !== 'all') {
-      return appData.complaints.filter(item => item.status === currentFilter);
-    }
-    return appData.complaints;
-  }
-  return [];
-}
-
-function renderDashboard() {
-  elements.complaintList.innerHTML = '';
-  const complaints = getDashboardComplaints();
-  if (complaints.length === 0) {
-    elements.dashboardEmpty.classList.remove('hidden');
-    return;
-  }
-  elements.dashboardEmpty.classList.add('hidden');
-  complaints.forEach(complaint => {
-    const card = buildComplaintCard(complaint);
-    elements.complaintList.appendChild(card);
-  });
-}
-
-function buildComplaintCard(complaint) {
-  const template = elements.complaintCardTemplate.content.cloneNode(true);
-  const card = template.querySelector('.complaint-card');
-  const title = card.querySelector('.complaint-title');
-  const meta = card.querySelector('.complaint-meta');
-  const statusPill = card.querySelector('.status-pill');
-  const bodyText = card.querySelector('.complaint-text');
-  const details = card.querySelector('.complaint-details');
-  const actions = card.querySelector('.complaint-actions');
-
-  title.textContent = `Complaint #${complaint.id} — ${complaint.issueType}`;
-  meta.textContent = `Submitted by ${complaint.consumerName} in block ${complaint.areaBlock} · ${new Date(complaint.createdAt).toLocaleString()}`;
-  statusPill.textContent = complaint.status;
-  statusPill.className = `status-pill ${statusClass[complaint.status] || 'status-closed'}`;
-  bodyText.textContent = complaint.complaintDetails;
-
-  const addDetail = (label, value) => {
-    const row = document.createElement('div');
-    const labelEl = document.createElement('strong');
-    labelEl.textContent = `${label}: `;
-    row.appendChild(labelEl);
-    row.appendChild(document.createTextNode(value || ''));
-    details.appendChild(row);
-  };
-
-  details.innerHTML = '';
-  addDetail('CNIC', complaint.cnic);
-  addDetail('Mobile', complaint.mobile);
-  addDetail('Bill Reference', complaint.billRef);
-  addDetail('Connection Type', complaint.connectionType);
-  addDetail('Area Details', complaint.areaDetails);
-  addDetail('History', complaint.history.map(entry => `${entry.action} (${new Date(entry.at).toLocaleString()})`).join('; '));
-
-  if (complaint.comments.length) {
-    const commentsSection = document.createElement('div');
-    const commentsTitle = document.createElement('strong');
-    commentsTitle.textContent = 'Comments:';
-    commentsSection.appendChild(commentsTitle);
-    complaint.comments.forEach(c => {
-      const commentRow = document.createElement('div');
-      const authorEl = document.createElement('em');
-      authorEl.textContent = c.author;
-      commentRow.appendChild(authorEl);
-      commentRow.appendChild(document.createTextNode(`: ${c.text}`));
-      commentsSection.appendChild(commentRow);
-    });
-    details.appendChild(commentsSection);
-  }
-
-  if (ROLE_CONFIG[currentUser.role].canReview) {
-    const input = document.createElement('textarea');
-    input.placeholder = 'Enter your comments here...';
-    input.rows = 3;
-    input.className = 'action-comment';
-    const actionButton = document.createElement('button');
-    actionButton.className = 'primary';
-    actionButton.type = 'button';
-    actionButton.textContent = getActionLabel(currentUser.role);
-    actionButton.addEventListener('click', () => handleAction(complaint.id, input.value.trim()));
-    actions.appendChild(input);
-    actions.appendChild(actionButton);
-  }
-
-  return card;
-}
-
-function getActionLabel(role) {
-  switch (role) {
-    case 'verificationOfficer': return 'Verify Complaint';
-    case 'staff': return 'Process Complaint';
-    default: return 'Update';
-  }
-}
-
-function handleAction(complaintId, commentText) {
-  if (!commentText) {
-    alert('Please add a comment before processing the complaint.');
-    return;
-  }
-  const complaint = appData.complaints.find(item => item.id === complaintId);
-  if (!complaint) {
-    return;
-  }
-
-  const actionTime = new Date().toISOString();
-  let nextStatus = complaint.status;
-  let actionDescription = '';
-
-  switch (currentUser.role) {
-    case 'verificationOfficer':
-      if (complaint.status !== STATUS.SUBMITTED) {
-        alert('This complaint is not in a state that can be verified.');
-        return;
-      }
-      nextStatus = STATUS.VERIFIED;
-      actionDescription = 'Verification officer verified the complaint';
-      break;
-    case 'staff':
-      if (complaint.status !== STATUS.VERIFIED) {
-        alert('This complaint is not in a state that can be processed by staff.');
-        return;
-      }
-      nextStatus = STATUS.PROCESSED;
-      actionDescription = 'Staff processed the complaint';
-      break;
-    default:
-      return;
-  }
-
-  complaint.status = nextStatus;
-  complaint.comments.push({ author: `${ROLE_CONFIG[currentUser.role].label} ${currentUser.username}`, text: commentText, at: actionTime });
-  complaint.history.push({ at: actionTime, actor: currentUser.username, action: actionDescription });
-  saveStorage();
-  renderDashboard();
-  buildStatusSummary();
-}
-
-function buildStatusSummary() {
-  const counts = {
-    [STATUS.SUBMITTED]: 0,
-    [STATUS.VERIFIED]: 0,
-    [STATUS.PROCESSED]: 0,
-  };
-  appData.complaints.forEach(complaint => {
-    if (counts[complaint.status] !== undefined) {
-      counts[complaint.status] += 1;
-    }
-  });
-  elements.statusSummary.innerHTML = Object.entries(counts).map(([status, value]) => `<div><strong>${value}</strong> ${status}</div>`).join('');
-}
-
-initApp();
