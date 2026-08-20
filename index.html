@@ -56,17 +56,39 @@
 
           <div class="config-grid">
             <label>
+              SMS Provider
+              <select id="smsProvider">
+                <option value="custom">Custom HTTP (Bearer token)</option>
+                <option value="twilio">Twilio (Recommended)</option>
+              </select>
+            </label>
+            <label>
               SMS API URL
               <input id="smsApiUrl" type="url" placeholder="https://example-sms-gateway.com/api/send" />
             </label>
             <label>
               API Key / Token
-              <input id="smsApiKey" type="text" placeholder="Optional if using mock mode" />
+              <input id="smsApiKey" type="text" placeholder="Bearer token or provider key" />
             </label>
             <label>
-              Sender ID
-              <input id="smsSenderId" type="text" placeholder="WASAGJ" />
+              Sender ID / From
+              <input id="smsSenderId" type="text" placeholder="WASAGJ or +1234567890" />
             </label>
+
+            <div id="twilioSettings" style="display:none; grid-column: 1 / -1;">
+              <label>
+                Twilio Account SID
+                <input id="twilioAccountSid" type="text" placeholder="ACxxxxxxxxxxxxxxxx" />
+              </label>
+              <label>
+                Twilio Auth Token
+                <input id="twilioAuthToken" type="password" placeholder="Your Twilio Auth Token" />
+              </label>
+              <label>
+                Twilio From Number
+                <input id="twilioFromNumber" type="text" placeholder="+1234567890" />
+              </label>
+            </div>
           </div>
         </div>
 

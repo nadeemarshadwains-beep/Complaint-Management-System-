@@ -17,9 +17,13 @@ const elements = {
   downloadXlsxBtn: document.getElementById('downloadXlsxBtn'),
   testXlsxBtn: document.getElementById('testXlsxBtn'),
   clearDataBtn: document.getElementById('clearDataBtn'),
+  smsProvider: document.getElementById('smsProvider'),
   smsApiUrl: document.getElementById('smsApiUrl'),
   smsApiKey: document.getElementById('smsApiKey'),
   smsSenderId: document.getElementById('smsSenderId'),
+  twilioAccountSid: document.getElementById('twilioAccountSid'),
+  twilioAuthToken: document.getElementById('twilioAuthToken'),
+  twilioFromNumber: document.getElementById('twilioFromNumber'),
 };
 
 const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer Ref No: {{consumer_number}}. Reference No: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
@@ -74,11 +78,44 @@ function initApp() {
         apiUrl: elements.smsApiUrl.value.trim(),
         apiKey: elements.smsApiKey.value.trim(),
         senderId: elements.smsSenderId.value.trim() || 'WASAGJ',
+        provider: elements.smsProvider?.value || 'custom',
+        twilioAccountSid: elements.twilioAccountSid?.value || '',
+        twilioAuthToken: elements.twilioAuthToken?.value || '',
+        twilioFromNumber: elements.twilioFromNumber?.value || '',
       };
       saveData();
     });
   });
 
+  // provider and twilio field listeners
+  elements.smsProvider?.addEventListener('change', () => {
+    document.getElementById('twilioSettings').style.display = elements.smsProvider.value === 'twilio' ? 'grid' : 'none';
+    appState.smsConfig.provider = elements.smsProvider.value;
+    saveData();
+  });
+
+  ['twilioAccountSid','twilioAuthToken','twilioFromNumber'].forEach((f) => {
+    elements[f]?.addEventListener('input', () => {
+      appState.smsConfig = {
+        ...appState.smsConfig,
+        twilioAccountSid: elements.twilioAccountSid.value.trim(),
+        twilioAuthToken: elements.twilioAuthToken.value.trim(),
+        twilioFromNumber: elements.twilioFromNumber.value.trim(),
+      };
+      saveData();
+    });
+  });
+
+  // restore provider visibility
+  if (elements.smsProvider) {
+    elements.smsProvider.value = appState.smsConfig.provider || 'custom';
+    document.getElementById('twilioSettings').style.display = elements.smsProvider.value === 'twilio' ? 'grid' : 'none';
+  }
+
+  // restore twilio fields
+  elements.twilioAccountSid.value = appState.smsConfig.twilioAccountSid || '';
+  elements.twilioAuthToken.value = appState.smsConfig.twilioAuthToken || '';
+  elements.twilioFromNumber.value = appState.smsConfig.twilioFromNumber || '';
   renderSummary();
   renderConsumerTable();
   previewMessage();
@@ -491,6 +528,20 @@ function buildMessage(person, template) {
   );
 }
 
+function toE164(mobile) {
+  if (!mobile) return '';
+  const digits = String(mobile).replace(/\D/g, '');
+  if (!digits) return '';
+  // If already starts with country code 92
+  if (digits.startsWith('92')) return '+' + digits;
+  // Starts with 0 (e.g., 03001234567) -> +92xxxxxxxxxx
+  if (digits.startsWith('0') && digits.length >= 10) return '+92' + digits.slice(1);
+  // If local 10-digit starting with 3 (e.g., 3012345678)
+  if (digits.length === 10 && digits.startsWith('3')) return '+92' + digits;
+  // Fallback: prepend +
+  return '+' + digits;
+}
+
 function populateConsumerSelect() {
   try {
     if (!elements.consumerSelect) return;
@@ -520,9 +571,9 @@ async function sendTestSms() {
 
   const message = buildMessage(person, appState.template);
   const config = appState.smsConfig;
-  const hasLiveGateway = Boolean(config.apiUrl && config.apiKey);
 
-  if (!hasLiveGateway) {
+  const provider = config.provider || 'custom';
+  if (provider === 'custom' && !(config.apiUrl && config.apiKey)) {
     person.smsStatus = 'simulated';
     appState.smsStatus = 'Simulated';
     saveData();
@@ -533,24 +584,47 @@ async function sendTestSms() {
   }
 
   try {
-    const payload = {
-      mobile: person.mobile,
-      message,
-      senderId: config.senderId,
-      consumerName: person.consumerName,
-      consumerNumber: person.consumerNumber,
-      billReference: person.billReference,
-      billingMonth: person.billingMonth,
-    };
+    let response;
+    if (provider === 'twilio') {
+      const sid = config.twilioAccountSid || '';
+      const token = config.twilioAuthToken || '';
+      const from = config.twilioFromNumber || config.senderId || '';
+      const to = toE164(person.mobile);
+      if (!sid || !token || !from) throw new Error('Twilio credentials (Account SID, Auth Token, From number) are not configured');
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
+      const body = new URLSearchParams();
+      body.append('To', to);
+      body.append('From', from);
+      body.append('Body', message);
 
-    const response = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + btoa(sid + ':' + token),
+        },
+        body: body.toString(),
+      });
+    } else {
+      const payload = {
+        mobile: person.mobile,
+        message,
+        senderId: config.senderId,
+        consumerName: person.consumerName,
+        consumerNumber: person.consumerNumber,
+        billReference: person.billReference,
+        billingMonth: person.billingMonth,
+      };
+
+      response = await fetch(config.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
@@ -567,18 +641,16 @@ async function sendTestSms() {
     console.error('Test SMS failed', error);
     alert('Test SMS failed: ' + (error?.message || error));
   }
-}
-
-async function sendBulkSms() {
+}async function sendBulkSms() {
   if (!appState.consumers.length) {
     alert('Please upload a billing file first.');
     return;
   }
 
   const config = appState.smsConfig;
-  const hasLiveGateway = Boolean(config.apiUrl && config.apiKey);
+  const provider = config.provider || 'custom';
 
-  if (!hasLiveGateway) {
+  if (provider === 'custom' && !(config.apiUrl && config.apiKey)) {
     appState.consumers = appState.consumers.map((person) => ({
       ...person,
       smsStatus: 'simulated',
@@ -596,27 +668,55 @@ async function sendBulkSms() {
     let sentCount = 0;
     for (const person of appState.consumers) {
       const message = buildMessage(person, appState.template);
-      const payload = {
-        mobile: person.mobile,
-        message,
-        senderId: config.senderId,
-        consumerName: person.consumerName,
-        consumerNumber: person.consumerNumber,
-        billReference: person.billReference,
-        billingMonth: person.billingMonth,
-      };
 
-      const response = await fetch(config.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      if (provider === 'twilio') {
+        const sid = config.twilioAccountSid || '';
+        const token = config.twilioAuthToken || '';
+        const from = config.twilioFromNumber || config.senderId || '';
+        const to = toE164(person.mobile);
+        if (!sid || !token || !from) throw new Error('Twilio credentials (Account SID, Auth Token, From number) are not configured');
+        const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
+        const body = new URLSearchParams();
+        body.append('To', to);
+        body.append('From', from);
+        body.append('Body', message);
 
-      if (!response.ok) {
-        throw new Error(`Gateway returned ${response.status}`);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + btoa(sid + ':' + token),
+          },
+          body: body.toString(),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Gateway returned ${response.status}`);
+        }
+
+      } else {
+        const payload = {
+          mobile: person.mobile,
+          message,
+          senderId: config.senderId,
+          consumerName: person.consumerName,
+          consumerNumber: person.consumerNumber,
+          billReference: person.billReference,
+          billingMonth: person.billingMonth,
+        };
+
+        const response = await fetch(config.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Gateway returned ${response.status}`);
+        }
       }
 
       person.smsStatus = 'sent';
