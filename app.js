@@ -18,7 +18,7 @@ const elements = {
   smsSenderId: document.getElementById('smsSenderId'),
 };
 
-const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Bill reference: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
+const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer No: {{consumer_number}}. Bill reference: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
 const BILLING_WEBSITE = 'https://dbill.wasagujrat.gop.pk';
 
 let appState = {
@@ -107,9 +107,9 @@ function clearRecords() {
 
 function downloadSampleTemplate() {
   const csv = [
-    'consumer_name,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date',
-    'Ali Khan,03001234567,BR-1001,August 2026,2026-08-20,2500,2750',
-    'Bibi Ayesha,03006543210,BR-1002,August 2026,2026-08-22,3200,3500',
+    'consumer_name,consumer_number,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date',
+    'Ali Khan,CN-1001,03001234567,BR-1001,August 2026,2026-08-20,2500,2750',
+    'Bibi Ayesha,CN-1002,03006543210,BR-1002,August 2026,2026-08-22,3200,3500',
   ].join('\n');
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -244,6 +244,7 @@ function normalizeConsumerRecord(row) {
   );
 
   const consumerName = findFirst(record, ['consumer_name', 'customer_name', 'name', 'consumer']);
+  const consumerNumber = findFirst(record, ['consumer_number', 'customer_number', 'consumer_no', 'consumer_id', 'account_number', 'account_no', 'connection_number', 'connection_no']);
   const mobile = normalizeMobile(findFirst(record, ['mobile_number', 'mobile', 'phone', 'contact', 'cell_number']));
   const billingMonth = findFirst(record, ['billing_month', 'bill_month', 'month', 'bill_period']);
   const dueDate = parseDateValue(findFirst(record, ['due_date', 'date_due', 'deadline']));
@@ -260,12 +261,13 @@ function normalizeConsumerRecord(row) {
 
   return {
     consumerName,
+    consumerNumber: consumerNumber || '',
     mobile,
     billingMonth,
     dueDate,
     amount: Number(amount),
     amountAfterDue: Number(safeAfterDue),
-    billReference: findFirst(record, ['bill_reference', 'reference', 'bill_no', 'consumer_id']) || '',
+    billReference: findFirst(record, ['bill_reference', 'reference', 'bill_no', 'reference_number', 'bill_ref', 'consumer_id']) || '',
     smsStatus: 'pending',
   };
 }
@@ -341,7 +343,7 @@ function formatCurrency(value) {
 
 function renderConsumerTable() {
   if (!appState.consumers.length) {
-    elements.consumerTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No consumer records uploaded yet.</td></tr>';
+    elements.consumerTableBody.innerHTML = '<tr><td colspan="9" class="empty-state">No consumer records uploaded yet.</td></tr>';
     return;
   }
 
@@ -352,6 +354,7 @@ function renderConsumerTable() {
       return `
         <tr>
           <td>${escapeHtml(person.consumerName)}</td>
+          <td>${escapeHtml(person.consumerNumber || '—')}</td>
           <td>${escapeHtml(person.billReference || '—')}</td>
           <td>${escapeHtml(person.mobile)}</td>
           <td>${escapeHtml(person.billingMonth)}</td>
@@ -389,6 +392,7 @@ function buildMessage(person, template) {
   const safeTemplate = template || DEFAULT_TEMPLATE;
   const replacements = {
     '{{consumer_name}}': person.consumerName,
+    '{{consumer_number}}': person.consumerNumber || 'N/A',
     '{{billing_month}}': person.billingMonth,
     '{{bill_reference}}': person.billReference || 'N/A',
     '{{due_date}}': person.dueDate,
@@ -436,6 +440,8 @@ async function sendBulkSms() {
         message,
         senderId: config.senderId,
         consumerName: person.consumerName,
+        consumerNumber: person.consumerNumber,
+        billReference: person.billReference,
         billingMonth: person.billingMonth,
       };
 

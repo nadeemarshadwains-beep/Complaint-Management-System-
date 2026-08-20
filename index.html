@@ -98,7 +98,7 @@
           <h3>2. Message template</h3>
         </div>
 
-        <textarea id="smsTemplate" rows="7">Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.</textarea>
+        <textarea id="smsTemplate" rows="7">Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer No: {{consumer_number}}. Bill reference: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.</textarea>
 
         <div class="preview-actions">
           <button id="previewMessageBtn" class="primary-btn" type="button">Preview message</button>
@@ -121,6 +121,7 @@
             <thead>
               <tr>
                 <th>Consumer</th>
+                <th>Consumer No</th>
                 <th>Bill Ref</th>
                 <th>Mobile</th>
                 <th>Billing Month</th>
@@ -132,7 +133,7 @@
             </thead>
             <tbody id="consumerTableBody">
               <tr>
-                <td colspan="8" class="empty-state">No consumer records uploaded yet.</td>
+                <td colspan="9" class="empty-state">No consumer records uploaded yet.</td>
               </tr>
             </tbody>
           </table>

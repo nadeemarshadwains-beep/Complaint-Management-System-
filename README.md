@@ -17,18 +17,19 @@ This project is a browser-based billing distribution tool made for monthly WASA 
 The upload file can include any of these common names:
 
 - consumer_name / customer_name / name
+- consumer_number / customer_number / consumer_no / account_number
 - mobile_number / mobile / phone / contact
 - billing_month / bill_month / month
 - due_date
 - amount
 - amount_after_due_date / after_due_amount / late_amount
-- bill_reference / reference / bill_no
+- bill_reference / reference / bill_no / reference_number
 
 ## Example CSV row
 
 ```csv
-consumer_name,mobile_number,billing_month,due_date,amount,amount_after_due_date
-Ali Khan,03001234567,August 2026,2026-08-20,2500,2750
+consumer_name,consumer_number,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date
+Ali Khan,CN-1001,03001234567,BR-1001,August 2026,2026-08-20,2500,2750
 ```
 
 ## How to use
