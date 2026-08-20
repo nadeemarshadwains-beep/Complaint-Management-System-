@@ -14,6 +14,8 @@ const elements = {
   dueCount: document.getElementById('dueCount'),
   smsStatusText: document.getElementById('smsStatusText'),
   downloadTemplateBtn: document.getElementById('downloadTemplateBtn'),
+  downloadXlsxBtn: document.getElementById('downloadXlsxBtn'),
+  testXlsxBtn: document.getElementById('testXlsxBtn'),
   clearDataBtn: document.getElementById('clearDataBtn'),
   smsApiUrl: document.getElementById('smsApiUrl'),
   smsApiKey: document.getElementById('smsApiKey'),
@@ -57,6 +59,8 @@ function initApp() {
   elements.sendSmsBtn.addEventListener('click', sendBulkSms);
   elements.sendTestSmsBtn?.addEventListener('click', sendTestSms);
   elements.downloadTemplateBtn.addEventListener('click', downloadSampleTemplate);
+  elements.downloadXlsxBtn?.addEventListener('click', downloadSampleXlsx);
+  elements.testXlsxBtn?.addEventListener('click', testExcelParsing);
   elements.clearDataBtn.addEventListener('click', clearRecords);
   elements.smsTemplate.addEventListener('input', () => {
     appState.template = elements.smsTemplate.value.trim() || DEFAULT_TEMPLATE;
@@ -122,6 +126,52 @@ function downloadSampleTemplate() {
   link.download = 'wasa_bill_template.csv';
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadSampleXlsx() {
+  try {
+    const rows = [
+      ['consumer_name','consumer_number','mobile_number','reference_number','bill_reference','billing_month','due_date','amount','amount_after_due_date'],
+      ['Ali Khan','CN-1001','03001234567','REF-1001','BR-1001','August 2026','2026-08-20',2500,2750],
+      ['Bibi Ayesha','CN-1002','03006543210','REF-1002','BR-1002','August 2026','2026-08-22',3200,3500],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'wasa_bill_template.xlsx';
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('downloadSampleXlsx error', err);
+    alert('Failed to generate XLSX: ' + (err?.message || err));
+  }
+}
+
+async function testExcelParsing() {
+  try {
+    // Generate an XLSX in-memory and pass it to readBillingFile
+    const rows = [
+      ['consumer_name','consumer_number','mobile_number','reference_number','bill_reference','billing_month','due_date','amount','amount_after_due_date'],
+      ['Ali Khan','CN-1001','03001234567','REF-1001','BR-1001','August 2026','2026-08-20',2500,2750],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const results = await readBillingFile(blob);
+    alert('Excel parsing test succeeded. Rows parsed: ' + results.length);
+  } catch (err) {
+    console.error('Excel parsing test failed', err);
+    alert('Excel parsing test failed: ' + (err?.message || err));
+  }
 }
 
 async function handleFileUpload(event) {
