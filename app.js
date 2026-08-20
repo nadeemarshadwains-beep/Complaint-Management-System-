@@ -165,7 +165,26 @@ function readBillingFile(file) {
           const text = String(data);
           sheetData = parseCsvText(text);
         } else {
-          const workbook = XLSX.read(data, { type: 'array' });
+          // XLSX.read accepts ArrayBuffer/Uint8Array or binary string. Convert ArrayBuffer to Uint8Array for maximum compatibility.
+          let workbook;
+          if (data instanceof ArrayBuffer) {
+            const uint8 = new Uint8Array(data);
+            workbook = XLSX.read(uint8, { type: 'array' });
+          } else if (typeof data === 'string') {
+            // binary string
+            workbook = XLSX.read(data, { type: 'binary' });
+          } else {
+            // try to coerce to Uint8Array, then read
+            try {
+              const uint8 = new Uint8Array(data);
+              workbook = XLSX.read(uint8, { type: 'array' });
+            } catch (err) {
+              // last resort: try reading as binary
+              const binary = Array.prototype.map.call(new Uint8Array(data), (ch) => String.fromCharCode(ch)).join('');
+              workbook = XLSX.read(binary, { type: 'binary' });
+            }
+          }
+
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           sheetData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
@@ -191,7 +210,15 @@ function readBillingFile(file) {
     if (isCsv) {
       reader.readAsText(file);
     } else {
-      reader.readAsArrayBuffer(file);
+      // Prefer ArrayBuffer for XLSX but fall back to binary string if unavailable
+      if (typeof reader.readAsArrayBuffer === 'function') {
+        reader.readAsArrayBuffer(file);
+      } else if (typeof reader.readAsBinaryString === 'function') {
+        reader.readAsBinaryString(file);
+      } else {
+        // last resort: read as text and attempt to parse (may fail for binary formats)
+        reader.readAsText(file);
+      }
     }
   });
 }
