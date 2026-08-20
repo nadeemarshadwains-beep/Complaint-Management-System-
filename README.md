@@ -28,8 +28,8 @@ The upload file can include any of these common names:
 ## Example CSV row
 
 ```csv
-consumer_name,consumer_number,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date
-Ali Khan,CN-1001,03001234567,BR-1001,August 2026,2026-08-20,2500,2750
+consumer_name,consumer_number,mobile_number,reference_number,bill_reference,billing_month,due_date,amount,amount_after_due_date
+Ali Khan,CN-1001,03001234567,REF-1001,BR-1001,August 2026,2026-08-20,2500,2750
 ```
 
 ## How to use

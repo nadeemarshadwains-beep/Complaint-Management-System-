@@ -20,7 +20,7 @@ const elements = {
   smsSenderId: document.getElementById('smsSenderId'),
 };
 
-const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer No: {{consumer_number}}. Bill reference: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
+const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer Ref No: {{consumer_number}}. Reference No: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
 const BILLING_WEBSITE = 'https://dbill.wasagujrat.gop.pk';
 
 let appState = {
@@ -110,9 +110,9 @@ function clearRecords() {
 
 function downloadSampleTemplate() {
   const csv = [
-    'consumer_name,consumer_number,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date',
-    'Ali Khan,CN-1001,03001234567,BR-1001,August 2026,2026-08-20,2500,2750',
-    'Bibi Ayesha,CN-1002,03006543210,BR-1002,August 2026,2026-08-22,3200,3500',
+    'consumer_name,consumer_number,mobile_number,reference_number,bill_reference,billing_month,due_date,amount,amount_after_due_date',
+    'Ali Khan,CN-1001,03001234567,REF-1001,BR-1001,August 2026,2026-08-20,2500,2750',
+    'Bibi Ayesha,CN-1002,03006543210,REF-1002,BR-1002,August 2026,2026-08-22,3200,3500',
   ].join('\n');
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
