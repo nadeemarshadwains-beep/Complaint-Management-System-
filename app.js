@@ -24,6 +24,7 @@ const elements = {
   twilioAccountSid: document.getElementById('twilioAccountSid'),
   twilioAuthToken: document.getElementById('twilioAuthToken'),
   twilioFromNumber: document.getElementById('twilioFromNumber'),
+  clearSmsCredsBtn: document.getElementById('clearSmsCredsBtn'),
 };
 
 const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Consumer Ref No: {{consumer_number}}. Reference No: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
@@ -104,6 +105,12 @@ function initApp() {
       };
       saveData();
     });
+  });
+
+  // clear SMS credentials button
+  elements.clearSmsCredsBtn?.addEventListener('click', () => {
+    if (!confirm('Clear stored SMS credentials from this browser?')) return;
+    clearSmsCredentials();
   });
 
   // restore provider visibility
@@ -540,6 +547,37 @@ function toE164(mobile) {
   if (digits.length === 10 && digits.startsWith('3')) return '+92' + digits;
   // Fallback: prepend +
   return '+' + digits;
+}
+
+function clearSmsCredentials() {
+  try {
+    appState.smsConfig = {
+      ...appState.smsConfig,
+      apiUrl: '',
+      apiKey: '',
+      senderId: appState.smsConfig.senderId || 'WASAGJ',
+      provider: 'custom',
+      twilioAccountSid: '',
+      twilioAuthToken: '',
+      twilioFromNumber: '',
+    };
+
+    // Clear UI fields
+    if (elements.smsApiUrl) elements.smsApiUrl.value = '';
+    if (elements.smsApiKey) elements.smsApiKey.value = '';
+    if (elements.smsSenderId) elements.smsSenderId.value = appState.smsConfig.senderId || 'WASAGJ';
+    if (elements.smsProvider) elements.smsProvider.value = 'custom';
+    if (elements.twilioAccountSid) elements.twilioAccountSid.value = '';
+    if (elements.twilioAuthToken) elements.twilioAuthToken.value = '';
+    if (elements.twilioFromNumber) elements.twilioFromNumber.value = '';
+    document.getElementById('twilioSettings').style.display = 'none';
+
+    saveData();
+    alert('SMS credentials cleared from this browser (localStorage).');
+  } catch (err) {
+    console.error('clearSmsCredentials error', err);
+    alert('Failed to clear SMS credentials: ' + (err?.message || err));
+  }
 }
 
 function populateConsumerSelect() {
