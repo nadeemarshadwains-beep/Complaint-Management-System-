@@ -5,6 +5,8 @@ const elements = {
   smsTemplate: document.getElementById('smsTemplate'),
   previewMessageBtn: document.getElementById('previewMessageBtn'),
   sendSmsBtn: document.getElementById('sendSmsBtn'),
+  sendTestSmsBtn: document.getElementById('sendTestSmsBtn'),
+  consumerSelect: document.getElementById('consumerSelect'),
   previewMessageBox: document.getElementById('previewMessageBox'),
   consumerTableBody: document.getElementById('consumerTableBody'),
   consumerCount: document.getElementById('consumerCount'),
@@ -53,6 +55,7 @@ function initApp() {
   elements.billFile.addEventListener('change', handleFileUpload);
   elements.previewMessageBtn.addEventListener('click', previewMessage);
   elements.sendSmsBtn.addEventListener('click', sendBulkSms);
+  elements.sendTestSmsBtn?.addEventListener('click', sendTestSms);
   elements.downloadTemplateBtn.addEventListener('click', downloadSampleTemplate);
   elements.clearDataBtn.addEventListener('click', clearRecords);
   elements.smsTemplate.addEventListener('input', () => {
@@ -344,11 +347,12 @@ function formatCurrency(value) {
 function renderConsumerTable() {
   if (!appState.consumers.length) {
     elements.consumerTableBody.innerHTML = '<tr><td colspan="9" class="empty-state">No consumer records uploaded yet.</td></tr>';
+    populateConsumerSelect();
     return;
   }
 
   elements.consumerTableBody.innerHTML = appState.consumers
-    .map((person) => {
+    .map((person, idx) => {
       const statusClass = person.smsStatus === 'sent' ? 'sent' : person.smsStatus === 'simulated' ? 'simulated' : 'pending';
       const messageText = person.smsStatus === 'sent' ? 'Sent' : person.smsStatus === 'simulated' ? 'Simulated' : 'Pending';
       return `
@@ -366,6 +370,8 @@ function renderConsumerTable() {
       `;
     })
     .join('');
+
+  populateConsumerSelect();
 }
 
 function escapeHtml(value) {
@@ -406,6 +412,84 @@ function buildMessage(person, template) {
     (text, [key, value]) => text.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value),
     safeTemplate
   );
+}
+
+function populateConsumerSelect() {
+  try {
+    if (!elements.consumerSelect) return;
+    const options = ['<option value="">-- Select consumer --</option>'];
+    appState.consumers.forEach((c, idx) => {
+      const label = `${c.consumerName} (${c.consumerNumber || c.mobile || 'no'})`;
+      options.push(`<option value="${idx}">${escapeHtml(label)}</option>`);
+    });
+    elements.consumerSelect.innerHTML = options.join('');
+  } catch (err) {
+    console.error('populateConsumerSelect error', err);
+  }
+}
+
+async function sendTestSms() {
+  const sel = elements.consumerSelect?.value;
+  if (!sel) {
+    alert('Please select a consumer to send a test SMS.');
+    return;
+  }
+
+  const person = appState.consumers[Number(sel)];
+  if (!person) {
+    alert('Selected consumer not found.');
+    return;
+  }
+
+  const message = buildMessage(person, appState.template);
+  const config = appState.smsConfig;
+  const hasLiveGateway = Boolean(config.apiUrl && config.apiKey);
+
+  if (!hasLiveGateway) {
+    person.smsStatus = 'simulated';
+    appState.smsStatus = 'Simulated';
+    saveData();
+    renderSummary();
+    renderConsumerTable();
+    alert('No live SMS gateway configured. Test SMS simulated. Preview:\n\n' + message);
+    return;
+  }
+
+  try {
+    const payload = {
+      mobile: person.mobile,
+      message,
+      senderId: config.senderId,
+      consumerName: person.consumerName,
+      consumerNumber: person.consumerNumber,
+      billReference: person.billReference,
+      billingMonth: person.billingMonth,
+    };
+
+    const response = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Gateway returned ${response.status}: ${text}`);
+    }
+
+    person.smsStatus = 'sent';
+    appState.smsStatus = 'Some sent';
+    saveData();
+    renderSummary();
+    renderConsumerTable();
+    alert('Test SMS sent successfully to ' + person.mobile);
+  } catch (error) {
+    console.error('Test SMS failed', error);
+    alert('Test SMS failed: ' + (error?.message || error));
+  }
 }
 
 async function sendBulkSms() {
