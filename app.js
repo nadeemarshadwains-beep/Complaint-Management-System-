@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'wasaBillDistributionData';
+﻿const STORAGE_KEY = 'wasaBillDistributionData';
 
 const elements = {
   billFile: document.getElementById('billFile'),
@@ -479,8 +479,8 @@ function renderConsumerTable() {
       return `
         <tr>
           <td>${escapeHtml(person.consumerName)}</td>
-          <td>${escapeHtml(person.consumerNumber || '—')}</td>
-          <td>${escapeHtml(person.billReference || '—')}</td>
+          <td>${escapeHtml(person.consumerNumber || 'â€”')}</td>
+          <td>${escapeHtml(person.billReference || 'â€”')}</td>
           <td>${escapeHtml(person.mobile)}</td>
           <td>${escapeHtml(person.billingMonth)}</td>
           <td>${escapeHtml(person.dueDate)}</td>
@@ -639,7 +639,7 @@ async function sendTestSms() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + btoa(sid + ':' + token),
+          'Authorization': 'Bearer ' + (config.apiKey || '')
         },
         body: body.toString(),
       });
@@ -704,7 +704,7 @@ async function sendTestSms() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
+          'Authorization': 'Bearer ' + (config.apiKey || '')
         },
         body: JSON.stringify(payload),
       });
@@ -769,7 +769,7 @@ async function sendTestSms() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': 'Basic ' + btoa(sid + ':' + token),
+            'Authorization': 'Bearer ' + (config.apiKey || '')
           },
           body: body.toString(),
         });
@@ -793,7 +793,7 @@ async function sendTestSms() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`,
+            'Authorization': 'Bearer ' + (config.apiKey || '')
           },
           body: JSON.stringify(payload),
         });
@@ -817,3 +817,4 @@ async function sendTestSms() {
     alert('SMS sending failed. Please check the gateway URL and API configuration.');
   }
 }
+
