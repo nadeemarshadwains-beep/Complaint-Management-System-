@@ -18,7 +18,7 @@ const elements = {
   smsSenderId: document.getElementById('smsSenderId'),
 };
 
-const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
+const DEFAULT_TEMPLATE = `Dear {{consumer_name}}, your WASA Gujrat bill for {{billing_month}} is PKR {{amount}}. Bill reference: {{bill_reference}}. Due date: {{due_date}}. Amount after due date: PKR {{amount_after_due_date}}. Pay via JazzCash or visit https://dbill.wasagujrat.gop.pk. Thank you.`;
 const BILLING_WEBSITE = 'https://dbill.wasagujrat.gop.pk';
 
 let appState = {
@@ -107,9 +107,9 @@ function clearRecords() {
 
 function downloadSampleTemplate() {
   const csv = [
-    'consumer_name,mobile_number,billing_month,due_date,amount,amount_after_due_date',
-    'Ali Khan,03001234567,August 2026,2026-08-20,2500,2750',
-    'Bibi Ayesha,03006543210,August 2026,2026-08-22,3200,3500',
+    'consumer_name,mobile_number,bill_reference,billing_month,due_date,amount,amount_after_due_date',
+    'Ali Khan,03001234567,BR-1001,August 2026,2026-08-20,2500,2750',
+    'Bibi Ayesha,03006543210,BR-1002,August 2026,2026-08-22,3200,3500',
   ].join('\n');
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -341,7 +341,7 @@ function formatCurrency(value) {
 
 function renderConsumerTable() {
   if (!appState.consumers.length) {
-    elements.consumerTableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No consumer records uploaded yet.</td></tr>';
+    elements.consumerTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No consumer records uploaded yet.</td></tr>';
     return;
   }
 
@@ -351,7 +351,8 @@ function renderConsumerTable() {
       const messageText = person.smsStatus === 'sent' ? 'Sent' : person.smsStatus === 'simulated' ? 'Simulated' : 'Pending';
       return `
         <tr>
-          <td>${escapeHtml(person.consumerName)}${person.billReference ? `<br><small>${escapeHtml(person.billReference)}</small>` : ''}</td>
+          <td>${escapeHtml(person.consumerName)}</td>
+          <td>${escapeHtml(person.billReference || '—')}</td>
           <td>${escapeHtml(person.mobile)}</td>
           <td>${escapeHtml(person.billingMonth)}</td>
           <td>${escapeHtml(person.dueDate)}</td>
@@ -389,6 +390,7 @@ function buildMessage(person, template) {
   const replacements = {
     '{{consumer_name}}': person.consumerName,
     '{{billing_month}}': person.billingMonth,
+    '{{bill_reference}}': person.billReference || 'N/A',
     '{{due_date}}': person.dueDate,
     '{{amount}}': formatCurrency(person.amount),
     '{{amount_after_due_date}}': formatCurrency(person.amountAfterDue),
