@@ -643,6 +643,52 @@ async function sendTestSms() {
         },
         body: body.toString(),
       });
+
+    } else if (provider === 'vonage') {
+      const apiKey = config.vonageApiKey || '';
+      const apiSecret = config.vonageApiSecret || '';
+      const from = config.vonageFrom || config.senderId || '';
+      const to = toE164(person.mobile);
+      if (!apiKey || !apiSecret || !from) throw new Error('Vonage credentials (API Key, API Secret, From) are not configured');
+      const url = 'https://rest.nexmo.com/sms/json';
+      const body = new URLSearchParams();
+      body.append('api_key', apiKey);
+      body.append('api_secret', apiSecret);
+      body.append('to', to);
+      body.append('from', from);
+      body.append('text', message);
+
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      });
+    }
+
+    } else if (provider === 'vonage') {
+      const apiKey = config.vonageApiKey || '';
+      const apiSecret = config.vonageApiSecret || '';
+      const from = config.vonageFrom || config.senderId || '';
+      const to = toE164(person.mobile);
+      if (!apiKey || !apiSecret || !from) throw new Error('Vonage credentials (API Key, API Secret, From) are not configured');
+      const url = 'https://rest.nexmo.com/sms/json';
+      const body = new URLSearchParams();
+      body.append('api_key', apiKey);
+      body.append('api_secret', apiSecret);
+      body.append('to', to);
+      body.append('from', from);
+      body.append('text', message);
+
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      });
+    }
     } else {
       const payload = {
         mobile: person.mobile,

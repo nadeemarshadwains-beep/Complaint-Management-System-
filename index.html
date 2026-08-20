@@ -60,7 +60,8 @@
               <select id="smsProvider">
                 <option value="custom">Custom HTTP (Bearer token)</option>
                 <option value="twilio">Twilio (Recommended)</option>
-              </select>
+                              <option value="vonage">Vonage / Nexmo (trial)</option>
+                            </select>
             </label>
             <label>
               SMS API URL
@@ -90,6 +91,22 @@
               </label>
               <p class="muted small">Need help finding Twilio credentials? See <a href="https://www.twilio.com/console" target="_blank" rel="noreferrer">Twilio Console</a> — Account SID and Auth Token are under Project settings. Use a Twilio phone number in E.164 format for the From field.</p>
               <button id="clearSmsCredsBtn" class="ghost-btn" type="button">Clear SMS credentials</button>
+            </div>
+
+            <div id="vonageSettings" style="display:none; grid-column: 1 / -1;">
+              <label>
+                Vonage API Key
+                <input id="vonageApiKey" type="text" placeholder="Your Vonage API Key" />
+              </label>
+              <label>
+                Vonage API Secret
+                <input id="vonageApiSecret" type="password" placeholder="Your Vonage API Secret" />
+              </label>
+              <label>
+                Vonage From
+                <input id="vonageFrom" type="text" placeholder="VONAGE or +1234567890" />
+              </label>
+              <p class="muted small">Sign up at <a href="https://dashboard.vonage.com/" target="_blank" rel="noreferrer">Vonage Dashboard</a>. Use the API key/secret from the dashboard and a verified sender name/number. The app will POST to https://rest.nexmo.com/sms/json.</p>
             </div>
           </div>
         </div>
