@@ -1,0 +1,14 @@
+{
+  "name": "wasa-sms-proxy",
+  "version": "1.0.0",
+  "description": "Small proxy to send SMS via Twilio, Vonage, or custom gateway to avoid exposing keys in the browser",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7"
+  }
+}

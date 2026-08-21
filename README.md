@@ -66,3 +66,37 @@ Then visit:
 ```text
 http://localhost:8000
 ```
+
+## Running the optional SMS proxy (recommended for live sending and to avoid CORS)
+
+Steps:
+
+1. Create a Node environment and install dependencies in the `server` folder:
+
+```bash
+cd server
+npm install
+```
+
+2. Copy the example env file and fill your provider credentials:
+
+```bash
+cp .env.example .env
+# edit .env and set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM, or VONAGE_API_KEY, VONAGE_API_SECRET, VONAGE_FROM
+```
+
+3. Start the proxy:
+
+```bash
+npm start
+```
+
+4. In the browser app (index.html / settings), set the "Custom gateway URL" to your proxy endpoint, for example:
+
+```
+http://localhost:3000/api/send
+```
+
+Set the provider in the app to the same provider you configured on the server (twilio, vonage, or custom). The app will POST to the proxy which will use server-side credentials to call the SMS provider.
+
+Security note: Do not commit your real credentials to the repository. Use environment variables or a secrets manager in production.
